@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <!--
+            force="true" matters here, it is not tidiness.
+
+            PHPUnit leaves a variable alone when it already exists in the
+            environment. Inside the Docker containers DB_DATABASE is always set
+            (env_file: .env), so `up_test` below was silently ignored and the
+            suite ran RefreshDatabase against the real development database,
+            truncating it.
+
+            Forced: the database name and every var that selects a datastore or
+            disables an integration — a test run must never be able to reach
+            real data, a real queue or a real mailbox.
+
+            Not forced: DB_HOST / DB_PORT / credentials. Those describe *where*
+            Postgres lives, which legitimately differs between CI (127.0.0.1)
+            and the Docker stack (`postgres`), and none of them can redirect a
+            run onto the development database on their own.
+        -->
+        <env name="APP_ENV" value="testing" force="true"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file" force="true"/>
+        <env name="BCRYPT_ROUNDS" value="4" force="true"/>
+        <env name="BROADCAST_CONNECTION" value="null" force="true"/>
+        <env name="CACHE_STORE" value="array" force="true"/>
+        <env name="DB_CONNECTION" value="pgsql" force="true"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="5432"/>
+        <env name="DB_DATABASE" value="up_test" force="true"/>
+        <env name="DB_USERNAME" value="up"/>
+        <env name="DB_PASSWORD" value="up_test"/>
+        <env name="MAIL_MAILER" value="array" force="true"/>
+        <env name="QUEUE_CONNECTION" value="sync" force="true"/>
+        <env name="SESSION_DRIVER" value="array" force="true"/>
+        <env name="PULSE_ENABLED" value="false" force="true"/>
+        <env name="TELESCOPE_ENABLED" value="false" force="true"/>
+        <env name="NIGHTWATCH_ENABLED" value="false" force="true"/>
+    </php>
+</phpunit>

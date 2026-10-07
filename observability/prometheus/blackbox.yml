@@ -1,0 +1,40 @@
+modules:
+  # Standard HTTP 2xx probe
+  http_2xx:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: []        # defaults to 2xx
+      method: GET
+      no_follow_redirects: false
+      fail_if_ssl: false
+      fail_if_not_ssl: false
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: "ip4"
+      ip_protocol_fallback: false
+
+  # JSON health check (expects {"status":"healthy"} in body)
+  http_health_json:
+    prober: http
+    timeout: 10s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]
+      method: GET
+      fail_if_body_not_matches_regexp:
+        - '"status"\s*:\s*"healthy"'
+      preferred_ip_protocol: "ip4"
+
+  # TCP port probe
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+
+  # ICMP ping probe
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"

@@ -1,0 +1,14 @@
+apiVersion: 1
+
+providers:
+  - name: Radiank Fleet
+    orgId: 1
+    folder: Radiank
+    folderUid: radiank-fleet
+    type: file
+    disableDeletion: true
+    updateIntervalSeconds: 60
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards
+      foldersFromFilesStructure: false

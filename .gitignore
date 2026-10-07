@@ -1,0 +1,54 @@
+*.log
+.DS_Store
+.env
+.env.backup
+.env.production
+.phpactor.json
+.phpunit.result.cache
+/.fleet
+/.idea
+/.nova
+/.phpunit.cache
+/.vscode
+/.zed
+/auth.json
+/node_modules
+/public/build
+/public/hot
+/public/storage
+/storage/*.key
+/storage/e2e-results/
+/storage/pail
+/vendor
+Homestead.json
+Homestead.yaml
+Thumbs.db
+
+# Ziggy generated routes
+resources/js/ziggy.js
+
+# Composer installer
+composer-setup.php
+composer.phar
+
+# Claude Code
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+MEMORY.md
+docs/plans/
+
+# Example tests
+tests/Feature/ExampleTest.php
+tests/Unit/ExampleTest.php
+
+# SEO sprint Chrome prompt artefacts (session-éphémères)
+SEO-PROMPT-*.txt
+
+# Redis incident backups (prod AOF, jamais committés — repo public)
+.tmp-redis-backup/
+.tmp-secrets/
+*.tar.gz
+
+# Local dev compose overrides
+docker-compose.override.yml

@@ -1,0 +1,330 @@
+@import "tailwindcss";
+
+@theme {
+    /* ── Instrument console palette ─────────────────────────────────────
+       Colour signals a problem: normal state is calm grey, amber = degraded,
+       red = down. Emerald is the brand and primary-action colour only. */
+    --color-page: #0b0c0e;
+    --color-surface-0: #131417;
+    --color-surface-1: #1a1b1f;
+    --color-surface-2: #202126;
+
+    --color-primary-400: #34d399;
+    --color-primary-500: #10b981;
+    --color-primary-600: #059669;
+
+    --color-success: #9a9aa1;
+    --color-danger: #ef4444;
+    --color-warning: #f59e0b;
+    --color-info: #60a5fa;
+    --color-muted: #6b6b72;
+
+    --color-text-primary: #e8e8ea;
+    --color-text-secondary: #9a9aa1;
+    /* Tertiary text is lifted from #6b6b72 to keep >= 4.5:1 on every surface;
+       #6b6b72 stays available as --color-text-faint for icons and dividers. */
+    --color-text-muted: #85858c;
+    --color-text-faint: #6b6b72;
+
+    --color-border: #26272c;
+    --color-border-hover: #34353b;
+    --color-border-strong: #34353b;
+
+    /* Pages style text with Tailwind's zinc/slate scales: remap both onto the
+       console greys so 400-600 stay readable (>= 4.5:1) and 700-950 match the
+       surfaces, without touching every page. */
+    --color-zinc-50: #f4f4f5;
+    --color-zinc-100: #e8e8ea;
+    --color-zinc-200: #d4d4d8;
+    --color-zinc-300: #bdbdc3;
+    --color-zinc-400: #9a9aa1;
+    --color-zinc-500: #8e8e95;
+    --color-zinc-600: #85858c;
+    /* zinc-700 is mostly used for faint timestamps and "—" placeholders:
+       tertiary grey rather than a near-invisible one. */
+    --color-zinc-700: #808087;
+    --color-zinc-800: #26272c;
+    --color-zinc-900: #1a1b1f;
+    --color-zinc-950: #131417;
+
+    --color-slate-50: #f4f4f5;
+    --color-slate-100: #e8e8ea;
+    --color-slate-200: #d4d4d8;
+    --color-slate-300: #bdbdc3;
+    --color-slate-400: #9a9aa1;
+    --color-slate-500: #8e8e95;
+    --color-slate-600: #85858c;
+    --color-slate-700: #3a3b41;
+    --color-slate-800: #26272c;
+    --color-slate-900: #1a1b1f;
+    --color-slate-950: #131417;
+
+    --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+    --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+
+    /* Radii: 4px for badges, 6px for buttons, fields and panels. The larger
+       steps are clamped so legacy rounded-xl/2xl panels render flat too. */
+    --radius-sm: 4px;
+    --radius-md: 6px;
+    --radius-lg: 6px;
+    --radius-xl: 6px;
+    --radius-2xl: 6px;
+    --radius-3xl: 6px;
+
+    /* No decorative blur: modal scrims stay a plain dim layer. */
+    --blur-xs: 0px;
+    --blur-sm: 0px;
+    --blur-md: 0px;
+    --blur-lg: 0px;
+    --blur-xl: 0px;
+
+    /* Flat surfaces: glow tokens kept as 'none' for any leftover usage;
+       popups keep one discreet drop shadow to separate from the page. */
+    --shadow-popup: 0 4px 16px rgba(0, 0, 0, 0.45);
+    --shadow-glow-emerald: none;
+    --shadow-glow-success: none;
+    --shadow-glow-danger: none;
+
+    /* Backward-compat aliases */
+    --color-navy: #0b0c0e;
+    --color-surface: #131417;
+    --color-surface-hover: #1a1b1f;
+}
+
+html {
+    scroll-behavior: smooth;
+}
+
+body {
+    background-color: var(--color-page);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    /* Figures line up in columns everywhere (uptime %, ms, counts). */
+    font-variant-numeric: tabular-nums;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #26272c; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #34353b; }
+* { scrollbar-width: thin; scrollbar-color: #26272c transparent; }
+
+/* Surfaces — `.glass` is the historical name of the flat panel. */
+.glass {
+    background: var(--color-surface-0);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+}
+
+.glass-hover {
+    transition: background-color 150ms, border-color 150ms;
+}
+.glass-hover:hover {
+    background: var(--color-surface-1);
+    border-color: var(--color-border-hover);
+}
+
+.glass-intense {
+    background: var(--color-surface-0);
+    border: 1px solid var(--color-border);
+    border-radius: 6px;
+}
+
+/* Section label: discreet small caps above a block. */
+.section-label {
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 16px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+}
+
+/* Status dots — calm when up, only a failure pulses. */
+.status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    position: relative;
+    background: var(--color-muted);
+}
+.status-dot.online {
+    background: var(--color-success);
+}
+.status-dot.offline {
+    background: var(--color-danger);
+}
+.status-dot.offline::before {
+    content: ''; position: absolute; inset: -2px;
+    border-radius: 50%;
+    background: var(--color-danger);
+    animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+    0%, 100% { transform: scale(1); opacity: 0.35; }
+    50% { transform: scale(1.6); opacity: 0; }
+}
+
+/* Nav */
+.nav-item {
+    display: flex; align-items: center; gap: 8px;
+    padding: 6px 12px; border-radius: 6px;
+    color: var(--color-text-secondary);
+    font-weight: 500; font-size: 13px;
+    transition: background-color 150ms, color 150ms; text-decoration: none;
+}
+.nav-item:hover { background: var(--color-surface-1); color: var(--color-text-primary); }
+.nav-item.active {
+    background: var(--color-surface-1);
+    color: var(--color-text-primary);
+}
+
+/* Form inputs */
+.form-input {
+    width: 100%; padding: 8px 12px;
+    background: var(--color-page);
+    border: 1px solid var(--color-border);
+    border-radius: 6px; color: var(--color-text-primary);
+    font-size: 14px; line-height: 20px;
+    transition: border-color 150ms, box-shadow 150ms; outline: none;
+}
+.form-input::placeholder { color: var(--color-text-faint); }
+.form-input:hover { border-color: var(--color-border-hover); }
+.form-input:focus {
+    border-color: var(--color-primary-500);
+    box-shadow: 0 0 0 1px var(--color-primary-500);
+}
+
+/* Buttons — rectangular, 6px radius. Dark text on emerald keeps >= 4.5:1. */
+.btn-primary,
+.btn-secondary,
+.btn-danger {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    padding: 8px 16px; min-height: 36px;
+    font-weight: 500; font-size: 14px; line-height: 20px;
+    border-radius: 6px; border: 1px solid transparent;
+    cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms;
+}
+.btn-primary:disabled,
+.btn-secondary:disabled,
+.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.btn-primary { background: var(--color-primary-500); border-color: var(--color-primary-500); color: #0b0c0e; }
+.btn-primary:hover { background: var(--color-primary-400); border-color: var(--color-primary-400); }
+
+.btn-secondary {
+    background: var(--color-surface-1); border-color: var(--color-border);
+    color: var(--color-text-primary);
+}
+.btn-secondary:hover { background: var(--color-surface-2); border-color: var(--color-border-hover); }
+
+.btn-danger {
+    background: transparent; border-color: rgba(239, 68, 68, 0.4);
+    color: #f87171;
+}
+.btn-danger:hover { background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.6); }
+
+/* Retired decorations: kept as no-ops so existing markup renders plain. */
+.bg-grid { background-image: none; }
+.text-gradient { color: inherit; }
+
+/* PrimeVue hard-codes 1rem on buttons and fields; the console scale uses 14px. */
+:root .p-button:not(.p-button-sm):not(.p-button-lg),
+:root .p-inputtext:not(.p-inputtext-sm):not(.p-inputtext-lg),
+:root .p-select-label,
+:root .p-togglebutton { font-size: 14px; }
+
+/* PrimeVue popup menus: the focused item is highlighted, the list itself
+   does not need the global focus ring around the whole panel. */
+.p-menu-list:focus-visible { outline: none; }
+
+/* Light mode (status pages) */
+html.light {
+    --color-page: #f8fafc;
+    --color-navy: #f8fafc;
+    --color-surface-0: #ffffff;
+    --color-surface: #ffffff;
+    --color-surface-1: #f3f4f6;
+    --color-text-primary: #0f172a;
+    --color-text-secondary: #475569;
+    --color-text-muted: #9ca3af;
+    --color-border: rgba(0, 0, 0, 0.06);
+    --color-border-hover: rgba(0, 0, 0, 0.10);
+    --color-border-strong: rgba(0, 0, 0, 0.15);
+}
+html.light .glass {
+    background: rgba(255, 255, 255, 0.8);
+}
+
+/* ================================
+   Vue Transition Utilities
+   ================================ */
+
+/* Fade */
+.fade-enter-active,
+.fade-leave-active {
+    transition: opacity 200ms ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+    opacity: 0;
+}
+
+/* Slide Up */
+.slide-up-enter-active,
+.slide-up-leave-active {
+    transition: opacity 300ms ease, transform 300ms ease;
+}
+.slide-up-enter-from {
+    opacity: 0;
+    transform: translateY(8px);
+}
+.slide-up-leave-to {
+    opacity: 0;
+    transform: translateY(-8px);
+}
+
+/* Scale (Modals/Dialogs) */
+.scale-enter-active,
+.scale-leave-active {
+    transition: opacity 200ms ease, transform 200ms ease;
+}
+.scale-enter-from,
+.scale-leave-to {
+    opacity: 0;
+    transform: scale(0.95);
+}
+
+/* List (TransitionGroup) */
+.list-enter-active {
+    transition: opacity 300ms ease, transform 300ms ease;
+    transition-delay: calc(var(--stagger, 0) * 50ms);
+}
+.list-leave-active {
+    transition: opacity 300ms ease;
+}
+.list-enter-from {
+    opacity: 0;
+    transform: translateY(8px);
+}
+.list-leave-to {
+    opacity: 0;
+}
+.list-move {
+    transition: transform 300ms ease;
+}
+
+/* ================================
+   Focus Visible
+   ================================ */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+    outline: 2px solid var(--color-primary-500);
+    outline-offset: 2px;
+}

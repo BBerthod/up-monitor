@@ -1,0 +1,63 @@
+global:
+  # How long to wait before resending a resolved alert
+  resolve_timeout: 5m
+  http_config:
+    follow_redirects: true
+
+# Route tree: critical → immediate, warning → grouped every 5m
+route:
+  receiver: up-webhook
+  group_by: [alertname, host, severity]
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+
+  routes:
+    # Critical alerts fire immediately (no group wait)
+    - receiver: up-webhook-critical
+      matchers:
+        - severity = critical
+      group_wait: 0s
+      repeat_interval: 1h
+
+    # Warning alerts grouped by 5-minute window
+    - receiver: up-webhook
+      matchers:
+        - severity = warning
+      group_wait: 5m
+      repeat_interval: 6h
+
+receivers:
+  # Default receiver (warnings)
+  - name: up-webhook
+    webhook_configs:
+      - url: https://up.example.com/api/alerts/prometheus
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /etc/alertmanager/webhook-token
+        max_alerts: 20
+
+  # Critical receiver — same endpoint, no rate limiting
+  - name: up-webhook-critical
+    webhook_configs:
+      - url: https://up.example.com/api/alerts/prometheus
+        send_resolved: true
+        http_config:
+          authorization:
+            type: Bearer
+            credentials_file: /etc/alertmanager/webhook-token
+        max_alerts: 0
+
+  # Silence sink (used during maintenance windows)
+  - name: blackhole
+
+inhibit_rules:
+  # If the site is completely down, suppress warning-level TTFB/memory alerts for the same host
+  - source_matchers:
+      - alertname = SiteDown
+      - severity = critical
+    target_matchers:
+      - severity = warning
+    equal: [host]

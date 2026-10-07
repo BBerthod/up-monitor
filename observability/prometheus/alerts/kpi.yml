@@ -1,0 +1,60 @@
+groups:
+  - name: kpi-radiank
+    interval: 60s
+    rules:
+
+      # ── Prometheus itself ──────────────────────────────────────
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "Prometheus target missing: {{ $labels.job }} / {{ $labels.instance }}"
+          description: "Target {{ $labels.instance }} (job: {{ $labels.job }}) has been unreachable for 5 minutes. Check network or exporter."
+
+      # ── Prometheus TSDB disk ──────────────────────────────────
+      - alert: PrometheusTSDBFull
+        expr: prometheus_tsdb_storage_blocks_bytes / (prometheus_tsdb_storage_blocks_bytes + prometheus_tsdb_wal_storage_size_bytes) > 0.90
+        for: 10m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "Prometheus TSDB approaching capacity"
+          description: "TSDB blocks use {{ $value | humanizePercentage }} of total Prometheus storage. Consider reducing retention or disk resizing."
+
+      # ── High CPU saturation ───────────────────────────────────
+      - alert: CPUHigh
+        expr: 100 - (avg by (host) (rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100) > 85
+        for: 10m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "CPU > 85% on {{ $labels.host }}"
+          description: "CPU utilization on {{ $labels.host }} has exceeded 85% for 10 minutes."
+
+      # ── SSL certificate expiry ────────────────────────────────
+      - alert: SSLCertExpiringSoon
+        expr: probe_ssl_earliest_cert_expiry{job=~"http-probe-.+"} - time() < 86400 * 14
+        for: 0m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "SSL cert expiring < 14 days: {{ $labels.instance }}"
+          description: "SSL certificate for {{ $labels.instance }} expires in {{ $value | humanizeDuration }}. Renew via Certbot/Cloudflare."
+
+      # ── Queue worker silent death ─────────────────────────────
+      # If container has no process matching queue:work after being healthy, the worker silently died.
+      - alert: QueueWorkerDown
+        expr: absent(container_last_seen{name=~".*worker.*"})
+        for: 3m
+        labels:
+          severity: critical
+          team: radiank
+        annotations:
+          summary: "Queue worker container not seen"
+          description: "No container matching '*worker*' has been seen by cAdvisor for 3 minutes. Jobs may be stacking up."

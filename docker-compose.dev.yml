@@ -1,0 +1,90 @@
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: up-dev-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+      - "5173:5173"
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+      - node_modules:/var/www/html/node_modules
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - up-dev-network
+
+  reverb:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: up-dev-reverb
+    restart: unless-stopped
+    command: php artisan reverb:start --host=0.0.0.0 --port=8080
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    volumes:
+      - .:/var/www/html
+      - vendor:/var/www/html/vendor
+      - node_modules:/var/www/html/node_modules
+    depends_on:
+      - app
+    networks:
+      - up-dev-network
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: up-dev-postgres
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: ${DB_DATABASE:-up}
+      POSTGRES_USER: ${DB_USERNAME:-up}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-secret}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - up-dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-up} -d ${DB_DATABASE:-up}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: up-dev-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redisdata:/data
+    networks:
+      - up-dev-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+networks:
+  up-dev-network:
+    driver: bridge
+
+volumes:
+  pgdata:
+  redisdata:
+  vendor:
+  node_modules:

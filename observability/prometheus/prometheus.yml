@@ -1,0 +1,155 @@
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+  scrape_timeout: 10s
+  external_labels:
+    cluster: radiank-fleet
+    env: production
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - alertmanager:9093
+      timeout: 10s
+
+rule_files:
+  - /etc/prometheus/alerts/uptime.yml
+  - /etc/prometheus/alerts/kpi.yml
+
+scrape_configs:
+
+  # ── Prometheus self-monitoring ────────────────────────────────
+  - job_name: prometheus
+    static_configs:
+      - targets: [localhost:9090]
+        labels:
+          host: obs-vps
+
+  # ── Observability stack (local) ───────────────────────────────
+  - job_name: node-exporter-local
+    static_configs:
+      - targets: [node-exporter:9100]
+        labels:
+          host: obs-vps
+          role: observability
+
+  - job_name: cadvisor-local
+    static_configs:
+      - targets: [cadvisor:8080]
+        labels:
+          host: obs-vps
+          role: observability
+
+  - job_name: loki
+    static_configs:
+      - targets: [loki:3100]
+        labels:
+          host: obs-vps
+
+  # ── up.example.com ────────────────────────────────────────────
+  # node_exporter must be running on the host (see docs/promtail-on-existing-hosts.md)
+  - job_name: node-exporter-up-radiank
+    static_configs:
+      - targets: ["${UP_RADIANK_HOST}:9100"]
+        labels:
+          host: up-radiank
+          role: app
+
+  - job_name: cadvisor-up-radiank
+    static_configs:
+      - targets: ["${UP_RADIANK_HOST}:8081"]
+        labels:
+          host: up-radiank
+          role: app
+
+  # HTTP health probe — up.example.com /api/health
+  - job_name: http-probe-up-radiank
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://up.example.com/api/health
+        labels:
+          host: up-radiank
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Laravel /api/health JSON scrape (custom metrics via Up's built-in endpoint)
+  # Requires the Up app to expose Prometheus-compatible metrics or use JSON scraping
+  - job_name: up-radiank-app-health
+    metrics_path: /api/health
+    scheme: https
+    static_configs:
+      - targets: [up.example.com]
+        labels:
+          host: up-radiank
+          job: app-health
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        target_label: __name__
+
+  # ── example-shop-repo ────────────────────────────────────────────────────
+  - job_name: node-exporter-example-shop-repo
+    static_configs:
+      - targets: ["${EXAMPLESTORE_HOST}:9100"]
+        labels:
+          host: example-shop-repo
+          role: app
+
+  - job_name: cadvisor-example-shop-repo
+    static_configs:
+      - targets: ["${EXAMPLESTORE_HOST}:8081"]
+        labels:
+          host: example-shop-repo
+          role: app
+
+  - job_name: http-probe-example-shop-repo
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://example-shop-repo.example.com/api/health
+        labels:
+          host: example-shop-repo
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # ── Example ─────────────────────────────────────────────────
+  - job_name: http-probe-example
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - https://example.org/
+          - https://example.de/
+          - https://example.com/
+        labels:
+          host: example
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # ── Blackbox exporter (HTTP probing) ─────────────────────────
+  - job_name: blackbox-exporter
+    static_configs:
+      - targets: [blackbox-exporter:9115]
+        labels:
+          host: obs-vps

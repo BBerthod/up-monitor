@@ -1,0 +1,87 @@
+groups:
+  - name: uptime-radiank
+    interval: 60s
+    rules:
+
+      # ── Scheduler staleness ────────────────────────────────────
+      # Fires when Up's scheduler hasn't run a check in > 10 minutes.
+      # Source: /api/health endpoint exposes up_health_scheduler_age_seconds.
+      - alert: UpRadiankSchedulerStalled
+        expr: up_health_scheduler_age_seconds{host="up-radiank"} > 600
+        for: 2m
+        labels:
+          severity: critical
+          team: radiank
+        annotations:
+          summary: "Up scheduler stalled on {{ $labels.host }}"
+          description: "Scheduler has not dispatched checks for {{ $value | humanizeDuration }}. Last healthy: {{ $labels.host }}. Check container logs: docker compose logs scheduler."
+          runbook: "https://github.com/BBerthod/up/blob/main/observability/docs/runbook-stack-down.md"
+
+      # ── HTTP probe: site down ─────────────────────────────────
+      - alert: SiteDown
+        expr: probe_success{job=~"http-probe-.+"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: radiank
+        annotations:
+          summary: "Site DOWN: {{ $labels.instance }}"
+          description: "HTTP probe failed for {{ $labels.instance }} for more than 2 minutes."
+          runbook: "https://github.com/BBerthod/up/blob/main/observability/docs/runbook-stack-down.md"
+
+      # ── TTFB too slow (cold origin) ────────────────────────────
+      # Fires when p95 TTFB exceeds 5s (cache cold, origin slow, or container CPU starved).
+      - alert: example-shopOriginCold
+        expr: probe_duration_seconds{job="http-probe-example-shop-repo"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "example-shop-repo origin slow: {{ $value | humanizeDuration }} TTFB"
+          description: "Probe duration for {{ $labels.instance }} exceeded 5s for 5 minutes. Origin may be cold or container CPU-throttled."
+
+      # ── Container restart storm ────────────────────────────────
+      # Fires when any container has restarted more than 3 times in 10 minutes.
+      - alert: ContainerRestarting
+        expr: increase(container_start_time_seconds{name!=""}[10m]) > 3
+        for: 0m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "Container restarting: {{ $labels.name }} on {{ $labels.host }}"
+          description: "Container {{ $labels.name }} has restarted {{ $value }} times in the last 10 minutes. Check logs."
+
+      # ── Disk space low ────────────────────────────────────────
+      - alert: DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{fstype!~"tmpfs|overlay",mountpoint="/"} / node_filesystem_size_bytes{fstype!~"tmpfs|overlay",mountpoint="/"}) < 0.10
+        for: 5m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "Disk < 10% free on {{ $labels.host }}"
+          description: "Filesystem {{ $labels.mountpoint }} on {{ $labels.host }} has {{ $value | humanizePercentage }} free space remaining."
+
+      # ── Memory pressure ───────────────────────────────────────
+      - alert: MemoryHigh
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.80
+        for: 5m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "Memory > 80% on {{ $labels.host }}"
+          description: "Host {{ $labels.host }} is using {{ $value | humanizePercentage }} of RAM. Consider scaling up or investigating memory leaks."
+
+      # ── Loki ingestion down ───────────────────────────────────
+      - alert: LokiIngestionDown
+        expr: up{job="loki"} == 0
+        for: 2m
+        labels:
+          severity: warning
+          team: radiank
+        annotations:
+          summary: "Loki is unreachable"
+          description: "Loki has been down for 2+ minutes. Container logs are no longer being persisted."
