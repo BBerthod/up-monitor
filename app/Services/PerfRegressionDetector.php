@@ -204,6 +204,13 @@ class PerfRegressionDetector
                 'tbt',
                 'benchmark_index',
                 'speed_index',
+                'field_lcp_ms',
+                'field_lcp_category',
+                'field_cls',
+                'field_cls_category',
+                'field_inp_ms',
+                'field_inp_category',
+                'field_source',
                 'scored_at',
             ]);
 
@@ -234,12 +241,24 @@ class PerfRegressionDetector
             fn ($run): bool => $this->hostsAreComparable($monitor, $baselineBenchmark, $run->benchmark_index)
         );
 
+        // Real-user (CrUX) data beats the lab: when the field LCP is good, every
+        // alert built on the simulated lab score/LCP is dropped (CLS keeps its rule).
+        $fieldIsGood = $current->field_lcp_category === 'FAST';
+
+        if ($fieldIsGood) {
+            Log::info('PerfRegressionDetector: lab score/LCP alerts suppressed by good field LCP', [
+                'monitor_id' => $monitor->id,
+                'field_lcp_ms' => $current->field_lcp_ms,
+                'field_source' => $current->field_source,
+            ]);
+        }
+
         $currPerf = (float) $current->performance;
         $prevPerf = $baselinePerf ?? (float) $previous->performance;
         $perfDelta = $prevPerf - $currPerf;
 
         // ── Performance score ──────────────────────────────────────────────────
-        if ($comparableHosts && $baselinePerf !== null) {
+        if (! $fieldIsGood && $comparableHosts && $baselinePerf !== null) {
             $minScoreDeltaPct = (float) config('monitoring.perf_regression.min_delta_score_pct', 15);
 
             // Every one of the consecutive runs must be degraded past the threshold.
@@ -264,7 +283,7 @@ class PerfRegressionDetector
         }
 
         // ── LCP (ms) ───────────────────────────────────────────────────────────
-        if ($previous->lcp !== null && $current->lcp !== null) {
+        if (! $fieldIsGood && $previous->lcp !== null && $current->lcp !== null) {
             $prevLcp = $baselineLcp ?? (float) $previous->lcp;
             $currLcp = (float) $current->lcp;
 
@@ -431,6 +450,18 @@ class PerfRegressionDetector
                     'scored_at' => $previous->scored_at?->toIso8601String(),
                 ],
                 'regressions' => $regressions,
+                // Real-user data, when CrUX has any for this URL/origin.
+                ...($current->field_lcp_category !== null || $current->field_cls_category !== null || $current->field_inp_category !== null
+                    ? ['field' => [
+                        'lcp_ms' => $current->field_lcp_ms,
+                        'lcp_category' => $current->field_lcp_category,
+                        'cls' => $current->field_cls,
+                        'cls_category' => $current->field_cls_category,
+                        'inp_ms' => $current->field_inp_ms,
+                        'inp_category' => $current->field_inp_category,
+                        'source' => $current->field_source,
+                    ]]
+                    : []),
             ],
             'impact_score' => $impactScore,
             'detected_at' => $firstDetectedAt ?? now(),

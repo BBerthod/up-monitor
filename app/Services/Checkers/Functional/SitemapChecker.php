@@ -10,7 +10,7 @@ use Illuminate\Support\Facades\Http;
 
 class SitemapChecker
 {
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /**
      * How many index levels to follow before giving up.

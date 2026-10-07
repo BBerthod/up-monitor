@@ -95,7 +95,7 @@ class WarmingService
                 ->withoutVerifying()
                 ->maxRedirects(3)
                 ->withHeaders(array_merge([
-                    'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)',
+                    'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)',
                     'Cache-Control' => 'max-age=0',
                 ], $safeCustomHeaders))
                 ->get($url);
@@ -196,7 +196,7 @@ class WarmingService
                 })
                 ->withoutVerifying()
                 ->withHeaders([
-                    'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)',
+                    'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)',
                 ])
                 ->get($sitemapUrl);
 

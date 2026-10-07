@@ -72,7 +72,7 @@ use Illuminate\Support\Facades\Log;
  */
 class WordPressVersionService
 {
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /** WordPress.org core release feed. Free, unauthenticated. */
     private const CORE_VERSION_URL = 'https://api.wordpress.org/core/version-check/1.7/';

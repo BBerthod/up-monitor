@@ -46,7 +46,7 @@ use Illuminate\Support\Facades\Log;
  */
 class CmpDetector
 {
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /**
      * Known CMP loader fingerprints, keyed by vendor.

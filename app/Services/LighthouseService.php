@@ -211,6 +211,8 @@ class LighthouseService
             ),
         );
 
+        $field = $this->parseFieldData($data);
+
         return MonitorLighthouseScore::create([
             'monitor_id' => $monitor->id,
             'performance' => $result->performance,
@@ -224,8 +226,53 @@ class LighthouseService
             'tbt' => $result->tbt,
             'benchmark_index' => $result->benchmarkIndex,
             'speed_index' => $result->speedIndex,
+            ...$field,
             'scored_at' => now(),
         ]);
+    }
+
+    /**
+     * Real-user (CrUX) metrics from the PSI response already received: the URL's
+     * `loadingExperience`, else the origin's `originLoadingExperience`, else all null
+     * (site too small for CrUX). The lab values lie on pages where e.g. a consent
+     * dialog is counted as the LCP; the field data is what users actually experienced.
+     *
+     * TO CONFIRM against a real PSI response: the CrUX keys CUMULATIVE_LAYOUT_SHIFT_SCORE
+     * and INTERACTION_TO_NEXT_PAINT, and that the CLS percentile is x100 (e.g. 8 => 0.08).
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, int|float|string|null>
+     */
+    private function parseFieldData(array $data): array
+    {
+        $field = array_fill_keys([
+            'field_lcp_ms', 'field_lcp_category', 'field_cls', 'field_cls_category',
+            'field_inp_ms', 'field_inp_category', 'field_source',
+        ], null);
+
+        foreach (['url' => 'loadingExperience', 'origin' => 'originLoadingExperience'] as $source => $key) {
+            $metrics = $data[$key]['metrics'] ?? null;
+
+            if (! is_array($metrics) || $metrics === []) {
+                continue;
+            }
+
+            $lcp = $metrics['LARGEST_CONTENTFUL_PAINT_MS'] ?? [];
+            $cls = $metrics['CUMULATIVE_LAYOUT_SHIFT_SCORE'] ?? [];
+            $inp = $metrics['INTERACTION_TO_NEXT_PAINT'] ?? [];
+
+            return [
+                'field_lcp_ms' => is_numeric($lcp['percentile'] ?? null) ? (int) round((float) $lcp['percentile']) : null,
+                'field_lcp_category' => $lcp['category'] ?? null,
+                'field_cls' => is_numeric($cls['percentile'] ?? null) ? round((float) $cls['percentile'] / 100, 4) : null,
+                'field_cls_category' => $cls['category'] ?? null,
+                'field_inp_ms' => is_numeric($inp['percentile'] ?? null) ? (int) round((float) $inp['percentile']) : null,
+                'field_inp_category' => $inp['category'] ?? null,
+                'field_source' => $source,
+            ];
+        }
+
+        return $field;
     }
 
     // -------------------------------------------------------------------------

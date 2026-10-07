@@ -50,7 +50,7 @@ use Illuminate\Support\Facades\Log;
  */
 class ZombiePageService
 {
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /**
      * Detect zombie pages for a site and create at most one insight.

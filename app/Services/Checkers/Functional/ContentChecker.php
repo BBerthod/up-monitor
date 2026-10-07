@@ -18,7 +18,7 @@ class ContentChecker
             $response = Http::timeout(30)
                 ->connectTimeout(10)
                 ->withHeaders([
-                    'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)',
+                    'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)',
                     'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
                 ])
                 ->get($url);

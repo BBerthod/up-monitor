@@ -819,4 +819,113 @@ class PerfRegressionDetectorTest extends TestCase
             ->whereNull('acknowledged_at')
             ->count());
     }
+
+    // ── Field data (CrUX) overrides the lab ──────────────────────────────
+
+    public function test_good_field_lcp_suppresses_lab_based_alerts(): void
+    {
+        $monitor = $this->monitor();
+
+        // Lab LCP is catastrophic and the score collapsed, but real users see a fast page.
+        $this->seedScores($monitor,
+            ['performance' => 90, 'lcp' => 2000, 'cls' => 0.05],
+            [
+                'performance' => 40,
+                'lcp' => 12000,
+                'cls' => 0.05,
+                'field_lcp_ms' => 900,
+                'field_lcp_category' => 'FAST',
+                'field_source' => 'url',
+            ]
+        );
+
+        $this->assertSame(0, $this->detector->detectForMonitor($monitor));
+        $this->assertDatabaseCount('insights', 0);
+    }
+
+    public function test_good_field_lcp_keeps_cls_rule(): void
+    {
+        $monitor = $this->monitor();
+
+        $this->seedScores($monitor,
+            ['performance' => 90, 'lcp' => 2000, 'cls' => 0.05],
+            [
+                'performance' => 40,
+                'lcp' => 12000,
+                'cls' => 0.6,
+                'field_lcp_ms' => 900,
+                'field_lcp_category' => 'FAST',
+            ]
+        );
+
+        $this->assertSame(1, $this->detector->detectForMonitor($monitor));
+
+        $insight = Insight::withoutGlobalScopes()->where('monitor_id', $monitor->id)->first();
+        $this->assertSame(['cls'], array_column($insight->payload['regressions'], 'metric'));
+    }
+
+    public function test_slow_field_lcp_keeps_alert_and_adds_field_values_to_payload(): void
+    {
+        $monitor = $this->monitor();
+
+        $this->seedScores($monitor,
+            ['performance' => 90, 'lcp' => 2000, 'cls' => 0.05],
+            [
+                'performance' => 40,
+                'lcp' => 12000,
+                'cls' => 0.05,
+                'field_lcp_ms' => 5200,
+                'field_lcp_category' => 'SLOW',
+                'field_cls' => 0.0800,
+                'field_cls_category' => 'FAST',
+                'field_inp_ms' => 310,
+                'field_inp_category' => 'AVERAGE',
+                'field_source' => 'origin',
+            ]
+        );
+
+        $this->assertSame(1, $this->detector->detectForMonitor($monitor));
+
+        $insight = Insight::withoutGlobalScopes()->where('monitor_id', $monitor->id)->first();
+        $this->assertSame(5200, $insight->payload['field']['lcp_ms']);
+        $this->assertSame('SLOW', $insight->payload['field']['lcp_category']);
+        $this->assertEquals(0.08, $insight->payload['field']['cls']);
+        $this->assertSame('FAST', $insight->payload['field']['cls_category']);
+        $this->assertSame(310, $insight->payload['field']['inp_ms']);
+        $this->assertSame('AVERAGE', $insight->payload['field']['inp_category']);
+        $this->assertSame('origin', $insight->payload['field']['source']);
+    }
+
+    public function test_average_field_lcp_keeps_alert(): void
+    {
+        $monitor = $this->monitor();
+
+        $this->seedScores($monitor,
+            ['performance' => 90, 'lcp' => 2000, 'cls' => 0.05],
+            [
+                'performance' => 40,
+                'lcp' => 12000,
+                'cls' => 0.05,
+                'field_lcp_ms' => 3000,
+                'field_lcp_category' => 'AVERAGE',
+            ]
+        );
+
+        $this->assertSame(1, $this->detector->detectForMonitor($monitor));
+    }
+
+    public function test_without_field_data_behaviour_is_unchanged(): void
+    {
+        $monitor = $this->monitor();
+
+        $this->seedScores($monitor,
+            ['performance' => 90, 'lcp' => 2000, 'cls' => 0.05],
+            ['performance' => 40, 'lcp' => 12000, 'cls' => 0.05]
+        );
+
+        $this->assertSame(1, $this->detector->detectForMonitor($monitor));
+
+        $insight = Insight::withoutGlobalScopes()->where('monitor_id', $monitor->id)->first();
+        $this->assertArrayNotHasKey('field', $insight->payload);
+    }
 }

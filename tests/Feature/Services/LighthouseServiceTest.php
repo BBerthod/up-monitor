@@ -245,4 +245,99 @@ class LighthouseServiceTest extends TestCase
 
         $this->service->audit($monitor);
     }
+
+    // ──────────────────────────────────────────────────
+    // Field data (CrUX)
+    // ──────────────────────────────────────────────────
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function fieldExperience(int $lcp, string $lcpCategory, int $cls, int $inp): array
+    {
+        return [
+            'metrics' => [
+                'LARGEST_CONTENTFUL_PAINT_MS' => ['percentile' => $lcp, 'category' => $lcpCategory],
+                'CUMULATIVE_LAYOUT_SHIFT_SCORE' => ['percentile' => $cls, 'category' => 'FAST'],
+                'INTERACTION_TO_NEXT_PAINT' => ['percentile' => $inp, 'category' => 'AVERAGE'],
+            ],
+        ];
+    }
+
+    private function monitorForField(): Monitor
+    {
+        return Monitor::factory()->for(Team::factory()->create())->create(['url' => 'https://example.com']);
+    }
+
+    public function test_persists_url_field_data_from_loading_experience(): void
+    {
+        $monitor = $this->monitorForField();
+
+        $data = $this->fixtureData;
+        $data['loadingExperience'] = $this->fieldExperience(900, 'FAST', 8, 250);
+        $data['originLoadingExperience'] = $this->fieldExperience(4000, 'SLOW', 30, 600);
+
+        Http::fake(['googleapis.com*' => Http::response($data, 200)]);
+
+        $score = $this->service->audit($monitor)->fresh();
+
+        $this->assertSame(900, $score->field_lcp_ms);
+        $this->assertSame('FAST', $score->field_lcp_category);
+        $this->assertEquals(0.08, $score->field_cls);
+        $this->assertSame('FAST', $score->field_cls_category);
+        $this->assertSame(250, $score->field_inp_ms);
+        $this->assertSame('AVERAGE', $score->field_inp_category);
+        $this->assertSame('url', $score->field_source);
+    }
+
+    public function test_falls_back_to_origin_loading_experience(): void
+    {
+        $monitor = $this->monitorForField();
+
+        $data = $this->fixtureData;
+        unset($data['loadingExperience']);
+        $data['originLoadingExperience'] = $this->fieldExperience(4000, 'SLOW', 30, 600);
+
+        Http::fake(['googleapis.com*' => Http::response($data, 200)]);
+
+        $score = $this->service->audit($monitor)->fresh();
+
+        $this->assertSame(4000, $score->field_lcp_ms);
+        $this->assertSame('SLOW', $score->field_lcp_category);
+        $this->assertSame('origin', $score->field_source);
+    }
+
+    public function test_field_data_is_null_without_loading_experience(): void
+    {
+        $monitor = $this->monitorForField();
+
+        $data = $this->fixtureData;
+        unset($data['loadingExperience'], $data['originLoadingExperience']);
+
+        Http::fake(['googleapis.com*' => Http::response($data, 200)]);
+
+        $score = $this->service->audit($monitor)->fresh();
+
+        $this->assertNull($score->field_lcp_ms);
+        $this->assertNull($score->field_lcp_category);
+        $this->assertNull($score->field_cls);
+        $this->assertNull($score->field_inp_ms);
+        $this->assertNull($score->field_source);
+    }
+
+    public function test_empty_url_loading_experience_falls_back_to_origin(): void
+    {
+        $monitor = $this->monitorForField();
+
+        $data = $this->fixtureData;
+        $data['loadingExperience'] = ['id' => 'https://example.com/', 'initial_url' => 'https://example.com/'];
+        $data['originLoadingExperience'] = $this->fieldExperience(1200, 'FAST', 5, 150);
+
+        Http::fake(['googleapis.com*' => Http::response($data, 200)]);
+
+        $score = $this->service->audit($monitor)->fresh();
+
+        $this->assertSame('origin', $score->field_source);
+        $this->assertSame(1200, $score->field_lcp_ms);
+    }
 }

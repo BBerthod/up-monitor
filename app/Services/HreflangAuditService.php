@@ -45,7 +45,7 @@ use Illuminate\Support\Facades\Log;
  */
 class HreflangAuditService
 {
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /**
      * Audit a site's hreflang reciprocity and create at most one insight.

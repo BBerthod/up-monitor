@@ -59,7 +59,7 @@ Wait for DNS propagation (~2 min with Cloudflare).
 
 ```bash
 # Clone the repo
-git clone https://github.com/BBerthod/up.git /opt/up
+git clone https://github.com/BBerthod/up-monitor.git /opt/up
 cd /opt/up/observability
 
 # Configure environment

@@ -61,7 +61,7 @@ use Illuminate\Support\Facades\Log;
 class BrokenRedirectService
 {
     /** User-Agent string for redirect probe requests. */
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /** Maximum response body inspected for the small browser-proof page. */
     private const MAX_BROWSER_PROOF_BYTES = 16 * 1024;

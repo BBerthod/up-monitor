@@ -46,7 +46,7 @@ use Illuminate\Support\Facades\Log;
 class BrokenPageService
 {
     /** User-Agent string for page probe requests. */
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     public function __construct(private readonly KpiCollector $kpiCollector) {}
 

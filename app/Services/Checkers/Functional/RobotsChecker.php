@@ -15,7 +15,7 @@ class RobotsChecker
 
         try {
             $response = Http::timeout(15)->connectTimeout(10)
-                ->withHeaders(['User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)'])
+                ->withHeaders(['User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)'])
                 ->get($url);
 
             $body = $response->body();

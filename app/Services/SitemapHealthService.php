@@ -49,7 +49,7 @@ use Illuminate\Support\Facades\Log;
  */
 class SitemapHealthService
 {
-    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)';
+    private const USER_AGENT = 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)';
 
     /** Maximum recursion depth into sitemap index files. */
     private const MAX_DEPTH = 2;

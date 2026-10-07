@@ -27,6 +27,13 @@ class MonitorLighthouseScore extends Model
         'tbt',
         'benchmark_index',
         'speed_index',
+        'field_lcp_ms',
+        'field_lcp_category',
+        'field_cls',
+        'field_cls_category',
+        'field_inp_ms',
+        'field_inp_category',
+        'field_source',
         'scored_at',
     ];
 
@@ -42,6 +49,9 @@ class MonitorLighthouseScore extends Model
         'tbt' => 'float',
         'benchmark_index' => 'float',
         'speed_index' => 'float',
+        'field_lcp_ms' => 'integer',
+        'field_cls' => 'float',
+        'field_inp_ms' => 'integer',
         'scored_at' => 'datetime',
     ];
 

@@ -50,7 +50,7 @@ class RedirectChecker
             $response = Http::timeout(10)
                 ->connectTimeout(5)
                 ->withoutRedirecting()
-                ->withHeaders(['User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)'])
+                ->withHeaders(['User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)'])
                 ->get($current);
 
             $chain[] = ['url' => $current, 'status' => $response->status()];

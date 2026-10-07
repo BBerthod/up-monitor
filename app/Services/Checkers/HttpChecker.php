@@ -95,7 +95,7 @@ class HttpChecker implements MonitorChecker
         // gateway that returns 204 to referer-less requests) override the
         // defaults below when the same header name is set on both sides.
         $headers = array_merge([
-            'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up)',
+            'User-Agent' => 'Up-Monitor/1.0 (+https://github.com/BBerthod/up-monitor)',
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         ], $monitor->request_headers ?? []);
 

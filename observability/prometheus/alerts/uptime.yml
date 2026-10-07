@@ -15,7 +15,7 @@ groups:
         annotations:
           summary: "Up scheduler stalled on {{ $labels.host }}"
           description: "Scheduler has not dispatched checks for {{ $value | humanizeDuration }}. Last healthy: {{ $labels.host }}. Check container logs: docker compose logs scheduler."
-          runbook: "https://github.com/BBerthod/up/blob/main/observability/docs/runbook-stack-down.md"
+          runbook: "https://github.com/BBerthod/up-monitor/blob/main/observability/docs/runbook-stack-down.md"
 
       # ── HTTP probe: site down ─────────────────────────────────
       - alert: SiteDown
@@ -27,7 +27,7 @@ groups:
         annotations:
           summary: "Site DOWN: {{ $labels.instance }}"
           description: "HTTP probe failed for {{ $labels.instance }} for more than 2 minutes."
-          runbook: "https://github.com/BBerthod/up/blob/main/observability/docs/runbook-stack-down.md"
+          runbook: "https://github.com/BBerthod/up-monitor/blob/main/observability/docs/runbook-stack-down.md"
 
       # ── TTFB too slow (cold origin) ────────────────────────────
       # Fires when p95 TTFB exceeds 5s (cache cold, origin slow, or container CPU starved).
