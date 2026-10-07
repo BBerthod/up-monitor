@@ -8,7 +8,7 @@
   <img src="https://img.shields.io/badge/Vue-3-42B883?style=flat-square&logo=vuedotjs&logoColor=white" alt="Vue 3">
   <img src="https://img.shields.io/badge/PHP-8.4-777BB4?style=flat-square&logo=php&logoColor=white" alt="PHP 8.4">
   <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL 16">
-  <img src="https://img.shields.io/badge/tests-170%2B%20files-34D399?style=flat-square" alt="170+ test files">
+  <img src="https://img.shields.io/badge/tests-170%2B_files-34D399?style=flat-square" alt="170+ test files">
 </p>
 
 <p align="center">
@@ -34,7 +34,7 @@
 - HTTP, DNS, ping and TCP port checks, with expected status and keyword detection
 - Functional checks: page content, redirects, `robots.txt`, sitemaps
 - SSL certificate and domain expiry tracking
-- Server health: load, memory, disk, with per-core thresholds
+- Server health: load, CPU and disk, with per-core thresholds
 - Public status pages with 90-day uptime bars and embeddable SVG badges
 
 </td>
@@ -76,25 +76,16 @@
 ## Architecture
 
 ```mermaid
-flowchart LR
-    subgraph Sources
-        S1[Websites & APIs]
-        S2[Servers]
-        S3[Search Console · CrUX · Lighthouse]
+flowchart TB
+    subgraph Sources[" "]
+        direction LR
+        S1[Websites & APIs] ~~~ S2[Servers] ~~~ S3[Search Console · CrUX · Lighthouse]
     end
-    subgraph Up
-        SCH[Scheduler] --> Q[(Redis queues)]
-        Q --> W[Workers<br/>checks · audits · KPIs]
-        W --> DB[(PostgreSQL)]
-        W --> INS[Insights & incident detection]
-        INS --> N[Notifications]
-        DB --> UI[Vue 3 dashboard]
-        W -- Reverb --> UI
-    end
-    S1 --> W
-    S2 --> W
-    S3 --> W
-    N --> C[Email · Slack · Discord · Telegram · Push]
+    Sources --> W
+    SCH[Scheduler] --> Q[(Redis queues)] --> W[Workers<br/>checks · audits · KPIs]
+    W --> DB[(PostgreSQL)] --> UI[Vue 3 dashboard]
+    W -. live updates · Reverb .-> UI
+    W --> INS[Insights & incident detection] --> N[Email · Slack · Discord · Telegram · Push]
 ```
 
 ## Quick start
