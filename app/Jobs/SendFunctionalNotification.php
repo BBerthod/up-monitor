@@ -7,6 +7,7 @@ use App\Enums\ChannelType;
 use App\Models\FunctionalCheck;
 use App\Models\NotificationChannel;
 use App\Models\PushSubscription;
+use App\Support\NtfyPublisher;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -42,6 +43,7 @@ class SendFunctionalNotification implements ShouldQueue
             ChannelType::DISCORD => $this->sendDiscord(),
             ChannelType::TELEGRAM => $this->sendTelegram(),
             ChannelType::PUSH => $this->sendPush(),
+            ChannelType::NTFY => $this->sendNtfy(),
         };
     }
 
@@ -152,6 +154,17 @@ class SendFunctionalNotification implements ShouldQueue
                 'footer' => ['text' => config('app.name')],
             ]],
         ])->throw();
+    }
+
+    private function sendNtfy(): void
+    {
+        NtfyPublisher::publish(
+            $this->channel->settings ?? [],
+            "[Up] Functional check failed: {$this->check->name}",
+            $this->summaryText(),
+            NtfyPublisher::PRIORITY_HIGH,
+            ['warning'],
+        );
     }
 
     private function sendTelegram(): void

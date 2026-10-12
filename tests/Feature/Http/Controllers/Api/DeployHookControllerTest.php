@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Http\Controllers\Api;
 
+use App\Jobs\ReemitDownAlertsAfterDeployWindow;
 use App\Jobs\RunPostDeploySmokeTests;
 use App\Models\Monitor;
 use App\Models\Site;
@@ -140,5 +141,35 @@ class DeployHookControllerTest extends TestCase
         $monitor->refresh();
         $this->assertNotNull($monitor->deploying_until);
         $this->assertTrue($monitor->deploying_until->isFuture());
+    }
+
+    public function test_deploy_hook_schedules_down_alert_reemission_for_the_end_of_the_window(): void
+    {
+        Queue::fake();
+        config()->set('services.dokploy.webhook_secret', 'valid-secret');
+        config()->set('monitoring.deploy_silence_minutes', 10);
+        $team = Team::factory()->create();
+        $site = Site::factory()->for($team)->create(['dokploy_app_id' => 'fr-example-shop']);
+        $monitor = Monitor::factory()->for($team)->for($site)->create();
+        $otherMonitor = Monitor::factory()->for($team)->create();
+
+        $this->postJson(route('api.deploy-hooks.dokploy'), $this->validPayload(), ['X-Dokploy-Secret' => 'valid-secret']);
+
+        Queue::assertPushed(ReemitDownAlertsAfterDeployWindow::class, function (ReemitDownAlertsAfterDeployWindow $job) use ($monitor, $otherMonitor): bool {
+            return $job->monitorIds === [$monitor->id]
+                && ! in_array($otherMonitor->id, $job->monitorIds, true)
+                && $job->delay !== null
+                && $job->delay->gt(now()->addMinutes(10));
+        });
+    }
+
+    public function test_deploy_hook_without_linked_monitors_schedules_no_reemission(): void
+    {
+        Queue::fake();
+        config()->set('services.dokploy.webhook_secret', 'valid-secret');
+
+        $this->postJson(route('api.deploy-hooks.dokploy'), $this->validPayload(), ['X-Dokploy-Secret' => 'valid-secret']);
+
+        Queue::assertNotPushed(ReemitDownAlertsAfterDeployWindow::class);
     }
 }

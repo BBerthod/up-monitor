@@ -5,7 +5,7 @@ import PageHeader from '@/Components/PageHeader.vue'
 import { computed, watch } from 'vue'
 
 const props = defineProps<{
-    channel: { id: number; name: string; type: string; is_active: boolean; settings: Record<string, string> }
+    channel: { id: number; name: string; type: string; is_active: boolean; settings: Record<string, string | boolean> }
 }>()
 
 const form = useForm({
@@ -22,6 +22,7 @@ const types = [
     { value: 'slack', label: 'Slack' },
     { value: 'webhook', label: 'Webhook' },
     { value: 'push', label: 'Push' },
+    { value: 'ntfy', label: 'ntfy' },
 ]
 
 const settingsFields: Record<string, { key: string; label: string; placeholder: string; sensitive?: boolean }[]> = {
@@ -34,6 +35,11 @@ const settingsFields: Record<string, { key: string; label: string; placeholder: 
         { key: 'chat_id', label: 'Chat ID', placeholder: '-1001234567890' },
     ],
     push: [],
+    ntfy: [
+        { key: 'topic', label: 'Topic', placeholder: 'my-secret-up-alerts' },
+        { key: 'server', label: 'Server (optional)', placeholder: 'https://ntfy.sh' },
+        { key: 'token', label: 'Access token (optional)', placeholder: 'tk_...', sensitive: true },
+    ],
 }
 
 const currentFields = computed(() => settingsFields[form.type] || [])
@@ -59,7 +65,7 @@ const submit = () => form.put(route('channels.update', props.channel.id))
 
             <div>
                 <label class="block text-sm font-medium text-white mb-2">Type</label>
-                <div class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                <div class="grid grid-cols-3 sm:grid-cols-7 gap-2">
                     <button v-for="t in types" :key="t.value" type="button" @click="form.type = t.value"
                         :class="['p-3 rounded-lg border text-center text-sm font-medium transition-colors',
                             form.type === t.value ? 'bg-emerald-500/20 border-emerald-500/30 text-emerald-400' : 'bg-white/5 border-white/10 text-slate-400 hover:bg-white/10']">
@@ -77,6 +83,20 @@ const submit = () => form.put(route('channels.update', props.channel.id))
             </div>
 
             <p v-if="form.errors.settings" class="text-sm text-red-400">{{ form.errors.settings }}</p>
+
+            <div v-if="form.type === 'ntfy'" class="space-y-2">
+                <div class="flex items-center gap-3">
+                    <button type="button" @click="form.settings.oncall = !form.settings.oncall"
+                        :class="['relative inline-flex h-6 w-11 rounded-full transition-colors', form.settings.oncall ? 'bg-emerald-500' : 'bg-slate-600']">
+                        <span :class="['inline-block h-5 w-5 transform rounded-full bg-white shadow transition', form.settings.oncall ? 'translate-x-5' : 'translate-x-0']" />
+                    </button>
+                    <span class="text-sm text-slate-300">On-call (urgent priority)</span>
+                </div>
+                <p class="text-sm text-slate-400">
+                    Down alerts are sent with ntfy's maximum priority. To make them ring through Do Not Disturb, open the ntfy app on Android,
+                    go to the notification settings of the "Max" priority channel and allow it to override Do Not Disturb (one-time setting on the phone).
+                </p>
+            </div>
 
             <div v-if="form.type === 'push'" class="p-4 rounded-lg bg-white/5 border border-white/10 text-slate-400 text-sm">
                 Push notifications will be sent to all team members who have enabled them in their browser. Subscribe via Settings to receive push alerts.

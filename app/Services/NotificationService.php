@@ -10,6 +10,7 @@ use App\Enums\WarmRunStatus;
 use App\Jobs\Notifications\SendBusinessKpiNotification;
 use App\Jobs\Notifications\SendDiscordNotification;
 use App\Jobs\Notifications\SendEmailNotification;
+use App\Jobs\Notifications\SendNtfyNotification;
 use App\Jobs\Notifications\SendPushNotification;
 use App\Jobs\Notifications\SendSlackNotification;
 use App\Jobs\Notifications\SendTelegramNotification;
@@ -332,6 +333,7 @@ class NotificationService
             ChannelType::DISCORD => SendDiscordNotification::class,
             ChannelType::PUSH => SendPushNotification::class,
             ChannelType::TELEGRAM => SendTelegramNotification::class,
+            ChannelType::NTFY => SendNtfyNotification::class,
         };
 
         $jobClass::dispatchSync($channel, 'down', $monitor, $incident, $check);
@@ -354,6 +356,7 @@ class NotificationService
             ChannelType::DISCORD => SendDiscordNotification::class,
             ChannelType::PUSH => SendPushNotification::class,
             ChannelType::TELEGRAM => SendTelegramNotification::class,
+            ChannelType::NTFY => SendNtfyNotification::class,
         };
 
         $jobClass::dispatch($channel, $event, $monitor, $incident, $check);

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Jobs\ReemitDownAlertsAfterDeployWindow;
 use App\Jobs\RunPostDeploySmokeTests;
 use App\Models\DeployEvent;
 use App\Models\Monitor;
@@ -50,9 +51,17 @@ class DeployHookController extends Controller
             ->where('dokploy_app_id', $validated['applicationId'])
             ->pluck('id');
         if ($siteIds->isNotEmpty()) {
-            Monitor::withoutGlobalScopes()
-                ->whereIn('site_id', $siteIds)
-                ->update(['deploying_until' => $until]);
+            $monitors = Monitor::withoutGlobalScopes()->whereIn('site_id', $siteIds);
+            $monitorIds = (clone $monitors)->pluck('id')->all();
+            $monitors->update(['deploying_until' => $until]);
+
+            // NotificationService drops "down" alerts while deploying_until is in the
+            // future and never retries them: when the window ends, re-send the ones
+            // for monitors that are still down. The few seconds of slack make sure
+            // the job runs after the window, not on its last tick.
+            if ($monitorIds !== []) {
+                ReemitDownAlertsAfterDeployWindow::dispatch($monitorIds)->delay($until->copy()->addSeconds(5));
+            }
         }
 
         Log::info('DeployHookController: deploy event received', [

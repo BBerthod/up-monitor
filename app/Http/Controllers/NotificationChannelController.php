@@ -135,6 +135,7 @@ class NotificationChannelController extends Controller
             ChannelType::SLACK,
             ChannelType::DISCORD,
             ChannelType::TELEGRAM,
+            ChannelType::NTFY,
             ChannelType::PUSH => 'Configured',
         };
     }
@@ -168,6 +169,12 @@ class NotificationChannelController extends Controller
             'telegram' => [
                 'settings.bot_token' => ['required', 'string', 'max:255'],
                 'settings.chat_id' => ['required', 'string', 'max:255'],
+            ],
+            'ntfy' => [
+                'settings.topic' => ['required', 'string', 'max:64', 'regex:/^[A-Za-z0-9_-]+$/'],
+                'settings.server' => ['nullable', 'url', 'regex:#^https?://#i', 'max:2000'],
+                'settings.token' => ['nullable', 'string', 'max:255'],
+                'settings.oncall' => ['nullable', 'boolean'],
             ],
             default => [],
         });

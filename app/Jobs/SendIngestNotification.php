@@ -7,6 +7,7 @@ use App\Models\IngestEvent;
 use App\Models\IngestSource;
 use App\Models\NotificationChannel;
 use App\Models\PushSubscription;
+use App\Support\NtfyPublisher;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -44,6 +45,7 @@ class SendIngestNotification implements ShouldQueue
             ChannelType::DISCORD => $this->sendDiscord(),
             ChannelType::PUSH => $this->sendPush(),
             ChannelType::TELEGRAM => $this->sendTelegram(),
+            ChannelType::NTFY => $this->sendNtfy(),
         };
     }
 
@@ -249,6 +251,18 @@ class SendIngestNotification implements ShouldQueue
                 ]);
             }
         }
+    }
+
+    private function sendNtfy(): void
+    {
+        $urgent = in_array($this->event->level->value, ['critical', 'emergency'], true);
+
+        NtfyPublisher::publish(
+            $this->channel->settings ?? [],
+            "[{$this->source->name}] {$this->event->level->label()}: {$this->event->type->label()}",
+            $this->event->message,
+            $urgent ? NtfyPublisher::PRIORITY_HIGH : NtfyPublisher::PRIORITY_DEFAULT,
+        );
     }
 
     private function sendTelegram(): void

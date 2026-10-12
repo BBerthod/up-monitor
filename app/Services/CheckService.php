@@ -179,6 +179,84 @@ class CheckService
         return $check;
     }
 
+    /**
+     * Re-send the "down" alert that NotificationService::notifyDown() swallowed
+     * because the monitor was inside its post-deploy silence window.
+     *
+     * notifyDown() is called once, when the failure threshold is crossed. If that
+     * moment falls inside the deploy window the alert is dropped and nothing ever
+     * fires it again, so an outage that starts during (or right after) a deploy
+     * and lasts would never be reported. This runs when the window ends and sends
+     * the missing alert, once, only if the outage is still going on:
+     *
+     *  - incident already notified (down_notified_at set)  -> nothing (no duplicate);
+     *  - incident resolved in the meantime                  -> nothing (no orphan alert);
+     *  - failure threshold not reached yet                  -> nothing (the regular
+     *    threshold logic in check() will notify when it is crossed);
+     *  - window re-armed by a newer deploy                  -> nothing (that deploy
+     *    schedules its own re-emission).
+     *
+     * Slow-response (TIMEOUT) incidents opened by checkThresholds() are not
+     * covered: the monitor answers, so there is no consecutive failure to count.
+     */
+    public function reemitDeferredDownAlert(Monitor $monitor): void
+    {
+        $lock = Cache::lock("monitor:check:{$monitor->id}", 60);
+
+        if (! $lock->block(10)) {
+            \Log::warning('CheckService: could not acquire lock for down re-emission', ['monitor_id' => $monitor->id]);
+
+            return;
+        }
+
+        try {
+            // State is read after the lock is held: a deploy or a pause may have
+            // landed while we waited for it.
+            $monitor->refresh();
+
+            if (! $monitor->is_active
+                || ($monitor->deploying_until !== null && $monitor->deploying_until->isFuture())) {
+                return;
+            }
+
+            $monitor->load('notificationChannels');
+
+            $openUnnotified = $monitor->incidents()
+                ->whereNull('resolved_at')
+                ->whereNull('down_notified_at')
+                ->latest('started_at')
+                ->get();
+
+            // Functional incidents are opened after their own 3 failed runs and stay
+            // open until a run passes, so "still open" means "still failing".
+            foreach ($openUnnotified->whereNotNull('functional_check_id') as $incident) {
+                $this->notificationService->notifyDown($monitor, $incident);
+            }
+
+            $incident = $openUnnotified->whereNull('functional_check_id')->first();
+
+            if ($incident === null) {
+                return;
+            }
+
+            $alertAfter = max(1, $monitor->alert_after_failures ?? 3);
+
+            $recentChecks = $monitor->checks()
+                ->latest('checked_at')
+                ->limit($alertAfter)
+                ->get();
+
+            $stillFailing = $recentChecks->count() === $alertAfter
+                && $recentChecks->every(fn (MonitorCheck $c): bool => $c->status !== CheckStatus::UP);
+
+            if ($stillFailing) {
+                $this->notificationService->notifyDown($monitor, $incident, $recentChecks->first());
+            }
+        } finally {
+            $lock->release();
+        }
+    }
+
     private function resolveChecker(MonitorType $type): MonitorChecker
     {
         return $this->checkers[$type->value] ??= match ($type) {

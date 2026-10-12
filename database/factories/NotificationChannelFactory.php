@@ -49,6 +49,15 @@ class NotificationChannelFactory extends Factory
         ]);
     }
 
+    public function ntfy(bool $oncall = false): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'name' => $oncall ? 'Test Ntfy on-call' : 'Test Ntfy',
+            'type' => ChannelType::NTFY,
+            'settings' => ['topic' => 'up-test-alerts', 'oncall' => $oncall],
+        ]);
+    }
+
     public function telegram(): static
     {
         return $this->state(fn (array $attributes) => [
