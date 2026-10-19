@@ -297,6 +297,45 @@ class ServerCrudTest extends TestCase
         $this->assertEquals(85, $server->settings['thresholds']['cpu_warning']);
     }
 
+    public function test_update_drops_null_threshold_overrides(): void
+    {
+        $user = $this->createUserWithTeam();
+        $server = Server::factory()->create(['team_id' => $user->team_id]);
+
+        $this->actingAs($user)
+            ->put(route('servers.update', $server), $this->validPayload([
+                'settings' => [
+                    'thresholds' => [
+                        'load_cores' => 64,
+                        'disk_warning' => 80,
+                        'cpu_warning' => null,
+                        'ram_critical' => null,
+                    ],
+                ],
+            ]));
+
+        $server->refresh();
+        $this->assertSame(['load_cores' => 64, 'disk_warning' => 80], $server->settings['thresholds']);
+    }
+
+    public function test_store_drops_null_threshold_overrides(): void
+    {
+        $user = $this->createUserWithTeam();
+
+        $this->actingAs($user)
+            ->post(route('servers.store'), $this->validPayload([
+                'name' => 'null-threshold-server',
+                'settings' => [
+                    'thresholds' => ['disk_warning' => 90, 'disk_critical' => null],
+                ],
+            ]));
+
+        $server = Server::withoutGlobalScopes()->where('name', 'null-threshold-server')->first();
+
+        $this->assertNotNull($server);
+        $this->assertSame(['disk_warning' => 90], $server->settings['thresholds']);
+    }
+
     public function test_update_fails_when_name_is_missing(): void
     {
         $user = $this->createUserWithTeam();

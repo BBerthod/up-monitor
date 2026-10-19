@@ -450,6 +450,12 @@ return [
         // retaining a hard network budget. Above the cap, files are selected
         // evenly across the index instead of taking a permanently biased prefix.
         'max_child_sitemaps' => (int) env('SITEMAP_MAX_CHILDREN', 1000),
+
+        // Wall-clock budget (seconds) for one site's audit, covering child sitemap
+        // fetches and URL probes. Must stay well under DetectSitemapHealth::$timeout
+        // (180 s), which kills the worker outright: leave room for the request that
+        // is in flight when the budget runs out (30 s fetch + 10 s probe).
+        'time_budget_seconds' => (int) env('SITEMAP_TIME_BUDGET_SECONDS', 120),
     ],
 
     // Affiliate commission leak detection — crawls product pages, extracts Amazon

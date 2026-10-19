@@ -652,7 +652,7 @@ class KpiCollectorSiteTest extends TestCase
     }
 
     // ──────────────────────────────────────────────────────────────────────────
-    // collectGscQueries — sc-domain vs URL-prefix routing
+    // collectGscQueries — explicit gsc_property only
     // ──────────────────────────────────────────────────────────────────────────
 
     public function test_collect_gsc_queries_uses_site_sc_domain_property(): void
@@ -711,28 +711,11 @@ class KpiCollectorSiteTest extends TestCase
         $this->assertEquals('chaussures running', $rows[0]['query']);
     }
 
-    public function test_collect_gsc_queries_falls_back_to_url_prefix_without_site(): void
+    public function test_collect_gsc_queries_skips_monitor_without_site(): void
     {
-        // A monitor with no linked Site (site_id null) must fall back to the
-        // URL-prefix form derived from the monitor URL.
-        Http::fake([
-            'oauth2.googleapis.com/token' => Http::response([
-                'access_token' => 'fake-token',
-                'token_type' => 'Bearer',
-                'expires_in' => 3600,
-            ]),
-            'www.googleapis.com/webmasters/*' => Http::response([
-                'rows' => [
-                    [
-                        'keys' => ['best monitor', 'https://example.com/monitors'],
-                        'clicks' => 10.0,
-                        'impressions' => 500.0,
-                        'ctr' => 0.02,
-                        'position' => 12.0,
-                    ],
-                ],
-            ]),
-        ]);
+        // A monitor with no linked Site has no explicit gsc_property: guessing a
+        // URL-prefix property produced 403s, so no GSC request must be sent.
+        Http::fake();
 
         $team = Team::factory()->create();
         $monitor = Monitor::factory()->for($team)->create([
@@ -742,17 +725,32 @@ class KpiCollectorSiteTest extends TestCase
             'is_active' => true,
         ]);
 
-        $this->collector->collectGscQueries($monitor);
+        $this->assertSame([], $this->collector->collectGscQueries($monitor));
 
-        // The request URL must contain the URL-prefix form, not any sc-domain form.
-        Http::assertSent(function ($request): bool {
-            if (! str_contains($request->url(), 'webmasters')) {
-                return false;
-            }
+        Http::assertNothingSent();
+    }
 
-            return str_contains($request->url(), urlencode('https://example.com/'))
-                && ! str_contains($request->url(), 'sc-domain');
-        });
+    public function test_collect_gsc_queries_skips_site_without_gsc_property(): void
+    {
+        Http::fake();
+
+        $team = Team::factory()->create();
+        $site = Site::factory()->for($team)->create([
+            'primary_domain' => 'example.com',
+            'domains' => ['example.com'],
+            'gsc_property' => null,
+            'is_active' => true,
+        ]);
+        $monitor = Monitor::factory()->for($team)->create([
+            'type' => 'http',
+            'url' => 'https://example.com/',
+            'site_id' => $site->id,
+            'is_active' => true,
+        ]);
+
+        $this->assertSame([], $this->collector->collectGscQueries($monitor));
+
+        Http::assertNothingSent();
     }
 
     // ──────────────────────────────────────────────────────────────────────────

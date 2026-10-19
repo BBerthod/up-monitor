@@ -169,23 +169,28 @@ class KpiCollector
      */
     public function collectGscQueries(Monitor $monitor, int $rowLimit = 1000): array
     {
+        // Only query an explicit gsc_property (e.g. "sc-domain:webcompare.fr").
+        // Guessing a URL-prefix property from the monitor URL hit properties the
+        // service account has no access to (403 "User does not have sufficient
+        // permission") for every monitor whose site has no GSC property, and the
+        // heuristic only fits URL-prefix properties anyway, not sc-domain ones.
+        $gscProperty = $monitor->site?->gsc_property;
+
+        if (empty($gscProperty)) {
+            Log::debug('KpiCollector GSC queries skipped: no gsc_property configured', [
+                'monitor_id' => $monitor->id,
+            ]);
+
+            return [];
+        }
+
         $token = $this->getGoogleAccessToken(['https://www.googleapis.com/auth/webmasters.readonly']);
 
         if ($token === null) {
             return [];
         }
 
-        // Prefer the explicit gsc_property from the linked Site (e.g.
-        // "sc-domain:webcompare.fr") when available — the URL-prefix heuristic
-        // derived from the monitor URL only works for URL-prefix GSC properties,
-        // not domain (sc-domain) properties. Without this, sites registered as
-        // sc-domain return zero rows, leaving page_metrics empty and starving the
-        // broken-page / content-decay / affiliate detectors. Same routing logic
-        // as collectGsc().
-        $gscProperty = $monitor->site?->gsc_property;
-        $siteUrl = ! empty($gscProperty)
-            ? urlencode($gscProperty)
-            : $this->gscSiteUrl($monitor->url);
+        $siteUrl = urlencode($gscProperty);
         // Same 28-day window as collectGsc() — endDate is yesterday, startDate is 29 days ago.
         $endDate = now()->subDay()->format('Y-m-d');
         $startDate = now()->subDays(self::GSC_PERIOD_DAYS + 1)->format('Y-m-d');

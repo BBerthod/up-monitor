@@ -55,6 +55,16 @@ class SitemapHealthService
     private const MAX_DEPTH = 2;
 
     /**
+     * Wall-clock deadline (microtime) for the current audit, or null outside one.
+     *
+     * The audit has to finish inside the queue job's timeout: past it the worker
+     * is killed, `failed()` never runs, and the previous insight is already gone.
+     * Network work (child sitemap fetches, URL probes) stops at this deadline and
+     * the audit reports on what it saw.
+     */
+    private ?float $deadline = null;
+
+    /**
      * Audit the site's sitemap and create at most one SITEMAP_HEALTH insight.
      *
      * @return int Number of insights created (0 or 1).
@@ -71,14 +81,20 @@ class SitemapHealthService
 
         $firstDetectedAt = Insight::firstDetectedAtForOpen(InsightType::SITEMAP_HEALTH, $siteScope);
 
-        // Clear stale findings up-front so a fixed sitemap stops being reported
-        // even when this run has nothing to say.
-        Insight::openUnacknowledgedOfType(InsightType::SITEMAP_HEALTH, $siteScope)
+        // Clear stale findings so a fixed sitemap stops being reported even when
+        // this run has nothing to say. Called once the network work is done, not
+        // before: a run killed mid-fetch must leave the previous finding in place
+        // rather than silently erase it.
+        $clearStale = fn () => Insight::openUnacknowledgedOfType(InsightType::SITEMAP_HEALTH, $siteScope)
             ->delete();
 
         if (! UrlSafetyValidator::isSafe($sitemapUrl)) {
+            $clearStale();
+
             return 0;
         }
+
+        $this->deadline = microtime(true) + (int) config('monitoring.sitemap_health.time_budget_seconds', 120);
 
         $sampleSize = (int) config('monitoring.sitemap_health.sample_size', 40);
 
@@ -93,7 +109,20 @@ class SitemapHealthService
         $budget = null;
         $this->streamEntries($sitemapUrl, $sampleSize, 0, $budget, $stats);
 
+        if ($stats['total'] === 0 && $this->deadlineExceeded()) {
+            // Out of time before a single entry was read: that says nothing about
+            // the sitemap, so do not raise a CRITICAL "unreachable" on it.
+            Log::warning('SitemapHealthService: time budget exhausted before any entry was read', [
+                'site_id' => $site->id,
+                'sitemap' => $sitemapUrl,
+            ]);
+
+            return 0;
+        }
+
         if ($stats['total'] === 0) {
+            $clearStale();
+
             return $this->raise(
                 $site,
                 InsightSeverity::CRITICAL,
@@ -130,6 +159,8 @@ class SitemapHealthService
         if ($statuses['unhealthy']) {
             $problems[] = $statuses['message'];
         }
+
+        $clearStale();
 
         if ($problems === []) {
             Log::info('SitemapHealthService: sitemap healthy', [
@@ -272,6 +303,12 @@ class SitemapHealthService
         $samples = [];
 
         foreach ($urls as $url) {
+            // Probes are the tail of the audit: stop on the deadline and judge the
+            // ratio on what was checked rather than overrun the job timeout.
+            if ($this->deadlineExceeded()) {
+                break;
+            }
+
             if (! UrlSafetyValidator::isSafe($url)) {
                 continue;
             }
@@ -407,7 +444,7 @@ class SitemapHealthService
         ?int &$budget,
         array &$stats,
     ): void {
-        if ($depth > self::MAX_DEPTH) {
+        if ($depth > self::MAX_DEPTH || $this->deadlineExceeded()) {
             return;
         }
 
@@ -443,7 +480,7 @@ class SitemapHealthService
                 $childUrls = SitemapChildSelector::select($children, $budget);
 
                 foreach ($childUrls as $childUrl) {
-                    if ($budget <= 0) {
+                    if ($budget <= 0 || $this->deadlineExceeded()) {
                         break;
                     }
 
@@ -492,6 +529,11 @@ class SitemapHealthService
                 'error' => $e->getMessage(),
             ]);
         }
+    }
+
+    private function deadlineExceeded(): bool
+    {
+        return $this->deadline !== null && microtime(true) >= $this->deadline;
     }
 
     /**

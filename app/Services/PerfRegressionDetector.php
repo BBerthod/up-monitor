@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\InsightSeverity;
 use App\Enums\InsightType;
+use App\Enums\MonitorType;
 use App\Models\Insight;
 use App\Models\Monitor;
 use App\Support\LighthouseAuditability;
@@ -167,6 +168,11 @@ class PerfRegressionDetector
      */
     public function detectForMonitor(Monitor $monitor): int
     {
+        // Independent of this monitor's own auditability: an orphaned insight of
+        // the site must be retired even when the only active monitor is excluded
+        // from Lighthouse and returns early below.
+        $this->retireUnreachableInsights($monitor);
+
         // A monitor that is not (or no longer) Lighthouse-auditable — disabled
         // manually, or structurally excluded by LighthouseAuditability (JSON/
         // health/status endpoint, affiliate redirect guard, 3xx expected status)
@@ -479,6 +485,42 @@ class PerfRegressionDetector
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
+
+    /**
+     * Retire unacknowledged PERF_REGRESSION insights of this monitor's site that
+     * no detector run can ever resolve again.
+     *
+     * The per-monitor purge in detectForMonitor() only reaches the insight of the
+     * monitor being evaluated. An insight whose monitor was deleted (monitor_id
+     * nullified) or paused/changed type is never evaluated again — DispatchInsights
+     * only fans out over active HTTP monitors — so it stayed open forever, whatever
+     * the later Lighthouse audits said. Matched by site (site_id, else the hostname
+     * key) rather than by monitor, per the site-keyed convention of the other
+     * detectors. Insights of a still-active sibling monitor are left to that
+     * monitor's own run.
+     */
+    private function retireUnreachableInsights(Monitor $monitor): void
+    {
+        $query = Insight::withoutGlobalScopes()
+            ->where('type', InsightType::PERF_REGRESSION->value)
+            ->whereNull('acknowledged_at')
+            ->where('team_id', $monitor->team_id);
+
+        if ($monitor->site_id !== null) {
+            $query->where('site_id', $monitor->site_id);
+        } else {
+            $query->whereNull('site_id')->where('site', $this->siteFromUrl($monitor->url));
+        }
+
+        $query->where(fn ($unreachable) => $unreachable
+            ->whereNull('monitor_id')
+            ->orWhereIn('monitor_id', Monitor::withoutGlobalScopes()
+                ->select('id')
+                ->where(fn ($inactive) => $inactive
+                    ->where('is_active', false)
+                    ->orWhere('type', '!=', MonitorType::HTTP->value))))
+            ->delete();
+    }
 
     /**
      * Median of the non-null values, or null when there are none.

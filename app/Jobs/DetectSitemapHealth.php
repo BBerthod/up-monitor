@@ -21,9 +21,12 @@ use Throwable;
  *
  * TIMEOUT
  * ───────
- * 180 s covers an index fetch plus up to 10 child sitemaps plus 40 HEAD probes.
- * Generous because sitemap-index files on cold caches have been measured in the
- * 10-20 s range in this fleet.
+ * 180 s is a hard kill (the worker is terminated, `failed()` does not run), so the
+ * service enforces its own softer wall-clock budget
+ * (monitoring.sitemap_health.time_budget_seconds, 120 s) and returns a partial
+ * audit instead. The index budget is up to 1000 child sitemaps
+ * (monitoring.sitemap_health.max_child_sitemaps): at the 30 s per-request timeout
+ * that cannot fit in 180 s on a large index, which is what the budget is for.
  */
 class DetectSitemapHealth implements ShouldQueue
 {
@@ -32,6 +35,8 @@ class DetectSitemapHealth implements ShouldQueue
     public int $tries = 2;
 
     public int $timeout = 180;
+
+    public bool $failOnTimeout = true;
 
     public array $backoff = [60, 300];
 

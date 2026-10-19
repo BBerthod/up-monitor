@@ -8,6 +8,7 @@ use App\Models\Insight;
 use App\Models\Server;
 use App\Models\Site;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Log;
 use Tests\TestCase;
 
 /**
@@ -241,6 +242,44 @@ class ServerMetricControllerTest extends TestCase
         $this->assertEquals($server->id, $insight->payload['server_id']);
         $this->assertContains('alpha.example.com', $insight->payload['sites']);
         $this->assertContains('beta.example.com', $insight->payload['sites']);
+    }
+
+    /**
+     * Regression: a server whose settings carry null threshold overrides (what the
+     * edit form used to persist) must inherit the global thresholds. Before the fix
+     * the nulls overwrote them and the detector threw a TypeError on every push.
+     */
+    public function test_null_threshold_overrides_inherit_global_values_and_still_alert(): void
+    {
+        [$server, $plain] = $this->makeActiveServerWithToken();
+        $server->update(['settings' => ['thresholds' => [
+            'load_cores' => 4,
+            'cpu_warning' => null,
+            'ram_warning' => null,
+            'disk_warning' => null,
+            'disk_critical' => null,
+            'load_warning' => null,
+            'load_critical' => null,
+            'cpu_sustained_points' => null,
+        ]]]);
+
+        config()->set('monitoring.server_health.disk_critical', 92);
+        config()->set('monitoring.server_health.disk_warning', 85);
+
+        Log::spy();
+
+        $this->postMetrics([
+            'cpu_percent' => 10.0,
+            'ram_percent' => 20.0,
+            'disk_percent' => 95.0,
+        ], $plain)->assertStatus(201);
+
+        Log::shouldNotHaveReceived('error');
+        $this->assertDatabaseHas('insights', [
+            'server_id' => $server->id,
+            'type' => InsightType::SERVER_HEALTH->value,
+            'severity' => InsightSeverity::CRITICAL->value,
+        ]);
     }
 
     // ─────────────────────────────────────────────────────────────────────

@@ -166,4 +166,38 @@ class ServerThresholdsTest extends TestCase
 
         $this->assertEquals(85, $thresholds['disk_warning']);
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Null override → inherit the global value (never overwrite it)
+    // ──────────────────────────────────────────────────────────────────────
+
+    public function test_null_overrides_inherit_global_values_and_non_null_overrides_are_kept(): void
+    {
+        config()->set('monitoring.server_health', [
+            'disk_warning' => 85,
+            'disk_critical' => 92,
+            'cpu_warning' => 90,
+        ]);
+
+        $team = Team::factory()->create();
+        $server = Server::factory()->create([
+            'team_id' => $team->id,
+            'settings' => [
+                'thresholds' => [
+                    'load_cores' => 64,
+                    'disk_warning' => 80,
+                    'disk_critical' => null,
+                    'cpu_warning' => null,
+                ],
+            ],
+        ]);
+
+        $thresholds = $server->thresholds();
+
+        $this->assertEquals(80, $thresholds['disk_warning']);
+        $this->assertEquals(92, $thresholds['disk_critical']);
+        $this->assertEquals(90, $thresholds['cpu_warning']);
+        $this->assertEquals(64, $thresholds['load_cores']);
+        $this->assertNotContains(null, $thresholds);
+    }
 }

@@ -501,4 +501,25 @@ class WhatChangedServiceTest extends TestCase
         $this->assertIsBool($result['core_update_suspected']);
         $this->assertIsArray($result['ga4_broken_sites']);
     }
+
+    public function test_pass_without_any_change_wipes_previous_unacknowledged_insights(): void
+    {
+        $team = Team::factory()->create();
+        Monitor::factory()->create(['url' => 'https://example.com', 'team_id' => $team->id]);
+        $team->load('monitors');
+
+        $stale = Insight::factory()->ofType(InsightType::TRAFFIC_CHANGE)->create([
+            'team_id' => $team->id,
+            'site' => 'example.com',
+        ]);
+        $acknowledged = Insight::factory()->acknowledged()->ofType(InsightType::TRAFFIC_CHANGE)->create([
+            'team_id' => $team->id,
+            'site' => 'example.com',
+        ]);
+
+        $this->service->forTeam($team);
+
+        $this->assertDatabaseMissing('insights', ['id' => $stale->id]);
+        $this->assertDatabaseHas('insights', ['id' => $acknowledged->id]);
+    }
 }

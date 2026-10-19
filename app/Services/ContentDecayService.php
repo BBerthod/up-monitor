@@ -67,8 +67,11 @@ use Illuminate\Support\Facades\Log;
  * IDEMPOTENCE
  * ────────────
  * Before creating new CONTENT_DECAY insights we delete all existing unacknowledged
- * ones for the monitor.  This means each daily run produces a fresh, de-duplicated
- * set of insights rather than piling up duplicates.
+ * ones for the site — also when the pass finds no decayed page at all, so a page
+ * that recovered stops being reported. An empty page_metrics table (no data) is the
+ * one case that leaves them untouched: absence of data is not evidence of recovery.
+ * Each daily run therefore produces a fresh, de-duplicated set of insights rather
+ * than piling up duplicates.
  *
  * IMPACT SCORE
  * ────────────
@@ -201,10 +204,8 @@ class ContentDecayService
             }
         }
 
-        if (empty($decayed)) {
-            return 0;
-        }
-
+        // Defined before the empty-result exit: a complete pass that finds nothing
+        // must still retire the previous run's insights.
         $siteScope = fn ($query) => $query
             // Dropping the global scope drops tenant isolation with it. site_id
             // carries its own team, but the hostname fallback does not: two teams
@@ -215,6 +216,16 @@ class ContentDecayService
                 fn ($query) => $query->where('site_id', $monitor->site_id),
                 fn ($query) => $query->where('site', $site),
             );
+
+        if (empty($decayed)) {
+            // A full pass over non-empty page data found no decayed page: every
+            // earlier unacknowledged insight for this site is stale. Returning
+            // here without clearing them left them open indefinitely.
+            Insight::openUnacknowledgedOfType(InsightType::CONTENT_DECAY, $siteScope)
+                ->delete();
+
+            return 0;
+        }
 
         $firstDetectedAtByPage = Insight::firstDetectedAtByPayloadKeyForOpen(
             InsightType::CONTENT_DECAY,

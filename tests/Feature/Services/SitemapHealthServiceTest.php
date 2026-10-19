@@ -600,4 +600,59 @@ class SitemapHealthServiceTest extends TestCase
 
         $this->assertCount(3, $probedUrls);
     }
+
+    // ──────────────────────────────────────────────────────────────────────
+    // Time budget: the audit must give up before the queue job is killed
+    // ──────────────────────────────────────────────────────────────────────
+
+    public function test_exhausted_time_budget_neither_raises_unreachable_nor_erases_previous_finding(): void
+    {
+        $site = $this->makeSite();
+
+        config(['monitoring.sitemap_health.time_budget_seconds' => 0]);
+
+        $previous = Insight::factory()->ofType(InsightType::SITEMAP_HEALTH)->create([
+            'team_id' => $site->team_id,
+            'site_id' => $site->id,
+            'site' => 'example.com',
+        ]);
+
+        Http::fake([
+            'https://example.com/sitemap.xml' => Http::response($this->sitemapXml([
+                ['loc' => 'https://example.com/a', 'lastmod' => now()->toDateString()],
+            ]), 200),
+        ]);
+
+        $count = (new SitemapHealthService)->detectForSite($site);
+
+        $this->assertSame(0, $count);
+        Http::assertNothingSent();
+        $this->assertDatabaseHas('insights', ['id' => $previous->id]);
+        $this->assertSame(
+            1,
+            Insight::withoutGlobalScopes()->where('type', InsightType::SITEMAP_HEALTH->value)->count(),
+            'A run that ran out of time must not file a CRITICAL "unreachable" insight.',
+        );
+    }
+
+    public function test_healthy_run_still_clears_previous_finding(): void
+    {
+        $site = $this->makeSite();
+
+        $previous = Insight::factory()->ofType(InsightType::SITEMAP_HEALTH)->create([
+            'team_id' => $site->team_id,
+            'site_id' => $site->id,
+            'site' => 'example.com',
+        ]);
+
+        Http::fake([
+            'https://example.com/sitemap.xml' => Http::response($this->sitemapXml([
+                ['loc' => 'https://example.com/a', 'lastmod' => now()->subDay()->toDateString()],
+            ]), 200),
+            'https://example.com/a' => Http::response('ok', 200),
+        ]);
+
+        $this->assertSame(0, (new SitemapHealthService)->detectForSite($site));
+        $this->assertDatabaseMissing('insights', ['id' => $previous->id]);
+    }
 }

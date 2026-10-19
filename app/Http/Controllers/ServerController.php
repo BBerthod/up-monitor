@@ -95,7 +95,7 @@ class ServerController extends Controller
         $this->authorize('create', Server::class);
 
         Server::create(array_merge(
-            $request->validated(),
+            $this->withoutNullThresholds($request->validated()),
             ['team_id' => $request->user()->team_id]
         ));
 
@@ -213,7 +213,7 @@ class ServerController extends Controller
     {
         $this->authorize('update', $server);
 
-        $server->update($request->validated());
+        $server->update($this->withoutNullThresholds($request->validated()));
 
         return to_route('servers.index')->with('success', 'Server updated.');
     }
@@ -225,6 +225,25 @@ class ServerController extends Controller
         $server->delete();
 
         return to_route('servers.index')->with('success', 'Server deleted.');
+    }
+
+    /**
+     * Drop null threshold overrides before they are stored: a null means
+     * "inherit the global value" and is represented by the key being absent.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    private function withoutNullThresholds(array $data): array
+    {
+        if (isset($data['settings']['thresholds']) && is_array($data['settings']['thresholds'])) {
+            $data['settings']['thresholds'] = array_filter(
+                $data['settings']['thresholds'],
+                fn ($value) => $value !== null,
+            );
+        }
+
+        return $data;
     }
 
     /**

@@ -324,6 +324,69 @@ class ContentDecayServiceTest extends TestCase
         $this->assertDatabaseHas('insights', ['id' => $acknowledged->id]);
     }
 
+    public function test_recovered_site_retires_previous_unacknowledged_insights(): void
+    {
+        $team = Team::factory()->create();
+        $monitor = Monitor::factory()->create([
+            'url' => 'https://example.com',
+            'team_id' => $team->id,
+        ]);
+
+        $stale = Insight::factory()->ofType(InsightType::CONTENT_DECAY)->create([
+            'team_id' => $team->id,
+            'monitor_id' => $monitor->id,
+            'site' => 'example.com',
+            'payload' => ['page' => '/recovered'],
+        ]);
+        $acknowledged = Insight::factory()->acknowledged()->ofType(InsightType::CONTENT_DECAY)->create([
+            'team_id' => $team->id,
+            'monitor_id' => $monitor->id,
+            'site' => 'example.com',
+            'payload' => ['page' => '/dismissed'],
+        ]);
+        $otherTeam = Insight::factory()->ofType(InsightType::CONTENT_DECAY)->create([
+            'site' => 'example.com',
+            'payload' => ['page' => '/elsewhere'],
+        ]);
+
+        // Data present, but the page is stable: a complete pass finds no decay.
+        foreach ([60, 0] as $daysAgo) {
+            PageMetric::factory()->create([
+                'site' => 'example.com',
+                'page' => '/recovered',
+                'clicks' => 200,
+                'impressions' => 5000,
+                'ctr' => 4.0,
+                'position' => 5.0,
+                'captured_at' => now()->subDays($daysAgo),
+            ]);
+        }
+
+        $this->assertSame(0, $this->makeService($monitor)->detectForMonitor($monitor));
+
+        $this->assertDatabaseMissing('insights', ['id' => $stale->id]);
+        $this->assertDatabaseHas('insights', ['id' => $acknowledged->id]);
+        $this->assertDatabaseHas('insights', ['id' => $otherTeam->id]);
+    }
+
+    public function test_missing_page_data_leaves_previous_insights_untouched(): void
+    {
+        $team = Team::factory()->create();
+        $monitor = Monitor::factory()->create([
+            'url' => 'https://example.com',
+            'team_id' => $team->id,
+        ]);
+
+        $existing = Insight::factory()->ofType(InsightType::CONTENT_DECAY)->create([
+            'team_id' => $team->id,
+            'monitor_id' => $monitor->id,
+            'site' => 'example.com',
+        ]);
+
+        $this->assertSame(0, $this->makeService($monitor)->detectForMonitor($monitor));
+        $this->assertDatabaseHas('insights', ['id' => $existing->id]);
+    }
+
     public function test_detected_at_is_preserved_per_page_while_payload_and_impact_are_recomputed(): void
     {
         $team = Team::factory()->create();

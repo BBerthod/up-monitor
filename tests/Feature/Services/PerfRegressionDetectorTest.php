@@ -8,6 +8,7 @@ use App\Enums\MonitorType;
 use App\Models\Insight;
 use App\Models\Monitor;
 use App\Models\MonitorLighthouseScore;
+use App\Models\Site;
 use App\Models\Team;
 use App\Services\PerfRegressionDetector;
 use Carbon\Carbon;
@@ -743,6 +744,91 @@ class PerfRegressionDetectorTest extends TestCase
 
         $this->assertSame(0, $created);
         $this->assertDatabaseHas('insights', ['id' => $insight->id, 'acknowledged_at' => null]);
+    }
+
+    // ── Insights no run can resolve any more are retired by site ─────────
+
+    public function test_healthy_pass_retires_open_insights_of_deleted_and_paused_monitors_of_the_site(): void
+    {
+        $team = Team::factory()->create();
+        $site = Site::factory()->for($team)->create();
+        $monitor = $this->monitor($team, ['site_id' => $site->id]);
+        $paused = $this->monitor($team, ['site_id' => $site->id, 'is_active' => false, 'url' => 'https://paused.example.com']);
+        $sibling = $this->monitor($team, ['site_id' => $site->id, 'url' => 'https://fr.example.com']);
+        $otherSite = Site::factory()->for($team)->create();
+        $otherSiteMonitor = $this->monitor($team, ['site_id' => $otherSite->id, 'is_active' => false, 'url' => 'https://other.example.com']);
+
+        $make = fn (array $attrs) => Insight::factory()
+            ->unacknowledged()
+            ->ofType(InsightType::PERF_REGRESSION)
+            ->create(array_merge(['team_id' => $team->id, 'site_id' => $site->id], $attrs));
+
+        $orphaned = $make(['monitor_id' => null]);
+        $ofPausedMonitor = $make(['monitor_id' => $paused->id]);
+        $ofActiveSibling = $make(['monitor_id' => $sibling->id]);
+        $acknowledgedOrphan = Insight::factory()
+            ->acknowledged()
+            ->ofType(InsightType::PERF_REGRESSION)
+            ->create(['team_id' => $team->id, 'site_id' => $site->id, 'monitor_id' => null]);
+        $ofOtherSite = Insight::factory()
+            ->unacknowledged()
+            ->ofType(InsightType::PERF_REGRESSION)
+            ->create(['team_id' => $team->id, 'site_id' => $otherSite->id, 'monitor_id' => $otherSiteMonitor->id]);
+
+        $this->seedScores($monitor,
+            ['performance' => 95, 'lcp' => 1500, 'cls' => 0.02],
+            ['performance' => 96, 'lcp' => 1400, 'cls' => 0.01]
+        );
+
+        $this->assertSame(0, $this->detector->detectForMonitor($monitor));
+
+        $this->assertDatabaseMissing('insights', ['id' => $orphaned->id]);
+        $this->assertDatabaseMissing('insights', ['id' => $ofPausedMonitor->id]);
+        $this->assertDatabaseHas('insights', ['id' => $ofActiveSibling->id]);
+        $this->assertDatabaseHas('insights', ['id' => $acknowledgedOrphan->id]);
+        $this->assertDatabaseHas('insights', ['id' => $ofOtherSite->id]);
+    }
+
+    public function test_pass_with_a_regression_keeps_its_own_insight_and_still_retires_orphans(): void
+    {
+        $team = Team::factory()->create();
+        $site = Site::factory()->for($team)->create();
+        $monitor = $this->monitor($team, ['site_id' => $site->id]);
+
+        $orphaned = Insight::factory()
+            ->unacknowledged()
+            ->ofType(InsightType::PERF_REGRESSION)
+            ->create(['team_id' => $team->id, 'site_id' => $site->id, 'monitor_id' => null]);
+
+        $this->seedScores($monitor,
+            ['performance' => 92, 'lcp' => 2000, 'cls' => 0.05],
+            ['performance' => 70, 'lcp' => 2000, 'cls' => 0.05]
+        );
+
+        $this->assertSame(1, $this->detector->detectForMonitor($monitor));
+
+        $this->assertDatabaseMissing('insights', ['id' => $orphaned->id]);
+        $this->assertSame(1, Insight::withoutGlobalScopes()
+            ->where('monitor_id', $monitor->id)
+            ->where('type', InsightType::PERF_REGRESSION->value)
+            ->whereNull('acknowledged_at')
+            ->count());
+    }
+
+    public function test_orphan_is_retired_even_when_the_current_monitor_is_not_lighthouse_enabled(): void
+    {
+        $team = Team::factory()->create();
+        $site = Site::factory()->for($team)->create();
+        $monitor = $this->monitor($team, ['site_id' => $site->id, 'lighthouse_enabled' => false]);
+
+        $orphaned = Insight::factory()
+            ->unacknowledged()
+            ->ofType(InsightType::PERF_REGRESSION)
+            ->create(['team_id' => $team->id, 'site_id' => $site->id, 'monitor_id' => null]);
+
+        $this->assertSame(0, $this->detector->detectForMonitor($monitor));
+
+        $this->assertDatabaseMissing('insights', ['id' => $orphaned->id]);
     }
 
     // ── Auditability guard — lighthouse_enabled / structurally excluded URL ──

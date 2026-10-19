@@ -106,9 +106,11 @@ class Server extends Model
      * Effective server-health thresholds for this server.
      *
      * The global config/monitoring.php values are used as defaults.  Any key
-     * present under settings['thresholds'] overrides the global default, so an
-     * operator can raise the disk_warning threshold for a high-churn server
-     * without touching the team-wide config.
+     * non-null key under settings['thresholds'] overrides the global default, so
+     * an operator can raise the disk_warning threshold for a high-churn server
+     * without touching the team-wide config. A null override means "inherit the
+     * global value": it must never replace the default, or the detector would be
+     * handed a null threshold.
      *
      * All six threshold keys are guaranteed to be present in the returned array:
      *   disk_warning, disk_critical, ram_warning, ram_critical,
@@ -121,7 +123,7 @@ class Server extends Model
         $global = config('monitoring.server_health');
         $overrides = $this->settings['thresholds'] ?? [];
 
-        return array_merge($global, $overrides);
+        return array_merge($global, array_filter($overrides, fn ($value) => $value !== null));
     }
 
     // -------------------------------------------------------------------------
